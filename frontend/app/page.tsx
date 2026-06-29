@@ -6,16 +6,16 @@ import { api, writeAndWait } from '../lib/genlayer';
 import type { ConditionCase, Snapshot, Claim, Evaluation, SettlementReceipt } from '../lib/types';
 import { credits, gateColor, gateLabel, isSupport, severityWeight, titleCase } from '../lib/format';
 
-import SpaceMapCanvas, { ZoneMarker } from '../components/SpaceMapCanvas';
+import SpaceMapCanvas, { ZoneData, EvidencePin, PinState } from '../components/SpaceMapCanvas';
 import TransactionTheater, { TxPhase } from '../components/TransactionTheater';
 import CaseTabStrip from '../components/CaseTabStrip';
+import CaseFileHeader from '../components/CaseFileHeader';
 import BeforeAfterLightbox from '../components/BeforeAfterLightbox';
 import AdjudicationDock from '../components/AdjudicationDock';
 import CaseForm from '../components/CaseForm';
 import SnapshotForm from '../components/SnapshotForm';
 import ClaimComposer, { ClaimDraft } from '../components/ClaimComposer';
 import AboutDrawer from '../components/AboutDrawer';
-import WalletButton from '../components/WalletButton';
 import { Modal, Button, Toast } from '../components/ui';
 
 export default function WorkbenchPage() {
@@ -84,28 +84,57 @@ export default function WorkbenchPage() {
   const entrySnaps = useMemo(() => snapshots.filter((s) => s.phase === 'entry'), [snapshots]);
   const exitSnaps = useMemo(() => snapshots.filter((s) => s.phase === 'exit'), [snapshots]);
 
-  // Derive zone markers for the floor-plan canvas from the entry/exit comparison.
-  const zoneMarkers: ZoneMarker[] = useMemo(() => {
+  // Derive the floor-plan zones and their evidence pins from the snapshots.
+  // Each snapshot becomes a pin inside its zone room; the pin state is the
+  // entry/exit condition delta. Exit evidence wins when a zone is captured at
+  // both phases. Zones named in an evaluated-but-flagged claim are contested.
+  const disputedExitIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (evaluation) evaluation.unsupportedIssueIds.forEach((id) => ids.add(id));
+    return ids;
+  }, [evaluation]);
+
+  const floorZones: ZoneData[] = useMemo(() => {
     const entryKeys = new Set(
       entrySnaps.filter((s) => s.issueType !== 'none').map((s) => `${s.zone}|${s.item}|${s.issueType}`),
     );
-    const markers: ZoneMarker[] = [];
-    exitSnaps.forEach((s) => {
-      const key = `${s.zone}|${s.item}|${s.issueType}`;
-      let state: ZoneMarker['state'] = 'clean';
-      if (s.issueType === 'none') state = 'clean';
-      else if (entryKeys.has(key)) state = 'preexisting';
-      else if (s.issueType === 'wear') state = 'wear';
-      else state = 'new';
-      markers.push({ zone: s.zone || s.item, state, severity: severityWeight(s.severity) });
+    const byZone = new Map<string, EvidencePin[]>();
+    const pushPin = (zoneName: string, pin: EvidencePin) => {
+      const key = zoneName || 'space';
+      if (!byZone.has(key)) byZone.set(key, []);
+      byZone.get(key)!.push(pin);
+    };
+
+    const sourced = exitSnaps.length > 0 ? exitSnaps : entrySnaps;
+    const fromExit = exitSnaps.length > 0;
+    sourced.forEach((s) => {
+      let state: PinState = 'clean';
+      if (!fromExit) {
+        state = 'clean';
+      } else if (s.issueType === 'none') {
+        state = 'clean';
+      } else if (disputedExitIds.has(s.id)) {
+        state = 'disputed';
+      } else if (entryKeys.has(`${s.zone}|${s.item}|${s.issueType}`)) {
+        state = 'preexisting';
+      } else if (s.issueType === 'wear') {
+        state = 'wear';
+      } else {
+        state = 'new';
+      }
+      pushPin(s.zone, {
+        id: s.id,
+        item: s.item || s.zone || 'item',
+        state,
+        severity: severityWeight(s.severity),
+        issueLabel: titleCase(s.issueType === 'none' ? state : s.issueType),
+      });
     });
-    if (markers.length === 0) {
-      entrySnaps.forEach((s) =>
-        markers.push({ zone: s.zone || s.item, state: 'clean', severity: severityWeight(s.severity) }),
-      );
-    }
-    return markers;
-  }, [entrySnaps, exitSnaps]);
+
+    return Array.from(byZone.entries()).map(([zone, pins]) => ({ zone, pins }));
+  }, [entrySnaps, exitSnaps, disputedExitIds]);
+
+  const floorEmpty = floorZones.length === 0;
 
   const selectClaim = useCallback(async (c: Claim) => {
     setActiveClaim(c);
@@ -288,62 +317,13 @@ export default function WorkbenchPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          padding: '12px 20px',
-          borderBottom: '1px solid var(--border)',
-          flexShrink: 0,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <MarkLogo />
-          <div>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.05rem', lineHeight: 1 }}>
-              MoveMark
-            </div>
-            <div style={{ fontSize: '0.66rem', color: 'var(--ink-3)' }}>Forensic condition workbench</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 18, marginLeft: 22, fontSize: '0.72rem', color: 'var(--ink-3)' }}>
-          <Stat label="Cases" value={summary?.cases} />
-          <Stat label="Snapshots" value={summary?.snapshots} />
-          <Stat label="Claims" value={summary?.claims} />
-          <Stat label="Sealed" value={summary?.settlements} />
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button
-            onClick={() => setReducedMotion(!reducedMotion)}
-            title="Toggle reduced motion"
-            style={{
-              fontSize: '0.7rem',
-              color: 'var(--ink-3)',
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-pill)',
-              padding: '6px 11px',
-            }}
-          >
-            {reducedMotion ? 'Motion off' : 'Motion on'}
-          </button>
-          <button
-            onClick={() => setShowAbout(true)}
-            style={{
-              fontSize: '0.72rem',
-              color: 'var(--ink-2)',
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-pill)',
-              padding: '6px 13px',
-            }}
-          >
-            Field manual
-          </button>
-          <WalletButton />
-        </div>
-      </header>
+      <CaseFileHeader
+        summary={summary}
+        theCase={theCase}
+        reducedMotion={reducedMotion}
+        setReducedMotion={setReducedMotion}
+        onAbout={() => setShowAbout(true)}
+      />
 
       {/* TOP STRIP of case file tabs (replaces the old left rail). */}
       <CaseTabStrip activeCase={activeCase} onSelectCase={setActiveCase} onNewCase={() => setShowCaseForm(true)} />
@@ -353,12 +333,13 @@ export default function WorkbenchPage() {
           flanking asides, no split pane. */}
       <main style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <SpaceMapCanvas
-          zones={zoneMarkers}
+          zones={floorZones}
           title={theCase?.title || 'MoveMark inspection floor'}
           reducedMotion={reducedMotion}
           gateProgress={gateProgress}
           gateColor={evaluation ? gateColor(evaluation.gateResult) : '#c79a4b'}
           flagged={flagged}
+          empty={!theCase || floorEmpty}
         />
 
         {theCase ? (
@@ -393,6 +374,58 @@ export default function WorkbenchPage() {
                 <FloorStat label="Claims" value={theCase.claimCount} />
               </div>
             </div>
+
+            {/* Seeded empty-state call to action when the case has no evidence. */}
+            {floorEmpty && (
+              <div
+                className="rise"
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: '52%',
+                  transform: 'translate(-50%, -50%)',
+                  maxWidth: 380,
+                  textAlign: 'center',
+                  padding: '20px 24px',
+                  borderRadius: 'var(--radius-l)',
+                  border: '1px solid var(--border-strong)',
+                  background: 'rgba(15,12,9,0.86)',
+                  backdropFilter: 'blur(8px)',
+                  boxShadow: 'var(--shadow-2)',
+                }}
+              >
+                <div className="stencil" style={{ fontSize: '0.56rem', color: 'var(--brass-2)' }}>
+                  Awaiting evidence intake
+                </div>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: '1.05rem',
+                    color: 'var(--ink)',
+                    marginTop: 6,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  This floor plan is laid out and ready.
+                </div>
+                <p style={{ fontSize: '0.74rem', color: 'var(--ink-3)', lineHeight: 1.5, marginTop: 8 }}>
+                  The blueprint rooms above are seeded placeholders. Record an entry snapshot at handover and an exit
+                  snapshot at return to pin real condition evidence into each zone.
+                </p>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 14 }}>
+                  <Button onClick={() => setSnapshotPhase('entry')} style={{ padding: '8px 16px', fontSize: '0.76rem' }}>
+                    Add entry evidence
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setSnapshotPhase('exit')}
+                    style={{ padding: '8px 16px', fontSize: '0.76rem' }}
+                  >
+                    Add exit evidence
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Floating tool cluster, top-right of the floor. */}
             <div
@@ -597,17 +630,6 @@ export default function WorkbenchPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value?: number }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-      <span className="mono" style={{ color: 'var(--ink)', fontSize: '0.9rem' }}>
-        {value ?? '..'}
-      </span>
-      <span style={{ fontSize: '0.6rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</span>
-    </div>
-  );
-}
-
 function FloorStat({ label, value }: { label: string; value?: number }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
@@ -616,22 +638,5 @@ function FloorStat({ label, value }: { label: string; value?: number }) {
       </span>
       <span style={{ fontSize: '0.54rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</span>
     </div>
-  );
-}
-
-function MarkLogo() {
-  return (
-    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden>
-      <defs>
-        <radialGradient id="mm-mark" cx="40%" cy="35%" r="70%">
-          <stop offset="0%" stopColor="#e0b968" />
-          <stop offset="60%" stopColor="#c79a4b" />
-          <stop offset="100%" stopColor="#5b9bd5" stopOpacity="0.5" />
-        </radialGradient>
-      </defs>
-      <rect x="4" y="4" width="26" height="26" rx="5" fill="none" stroke="url(#mm-mark)" strokeWidth="1.6" />
-      <path d="M 10 22 L 16 12 L 20 19 L 24 13" fill="none" stroke="url(#mm-mark)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="24" cy="13" r="2.4" fill="url(#mm-mark)" />
-    </svg>
   );
 }
