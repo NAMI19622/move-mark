@@ -1,28 +1,24 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '../lib/store';
 import { api, writeAndWait } from '../lib/genlayer';
 import type { ConditionCase, Snapshot, Claim, Evaluation, SettlementReceipt } from '../lib/types';
-import { bps, credits, gateColor, gateLabel, isSupport, severityWeight, titleCase, downloadJson } from '../lib/format';
+import { credits, gateColor, gateLabel, isSupport, severityWeight, titleCase } from '../lib/format';
 
 import SpaceMapCanvas, { ZoneMarker } from '../components/SpaceMapCanvas';
-import EvidenceMatchRibbon from '../components/EvidenceMatchRibbon';
-import WearCompassDial from '../components/WearCompassDial';
-import SettlementSeal from '../components/SettlementSeal';
-import ValidatorLedger from '../components/ValidatorLedger';
 import TransactionTheater, { TxPhase } from '../components/TransactionTheater';
-import CaseRail from '../components/CaseRail';
+import CaseTabStrip from '../components/CaseTabStrip';
+import BeforeAfterLightbox from '../components/BeforeAfterLightbox';
+import AdjudicationDock from '../components/AdjudicationDock';
 import CaseForm from '../components/CaseForm';
 import SnapshotForm from '../components/SnapshotForm';
 import ClaimComposer, { ClaimDraft } from '../components/ClaimComposer';
-import ClaimList from '../components/ClaimList';
 import AboutDrawer from '../components/AboutDrawer';
 import WalletButton from '../components/WalletButton';
-import { Button, Toast } from '../components/ui';
+import { Modal, Button, Toast } from '../components/ui';
 
-export default function StudioPage() {
+export default function WorkbenchPage() {
   const store = useStore();
   const { cases, summary, wallet, reducedMotion, setReducedMotion, refresh } = store;
 
@@ -41,6 +37,9 @@ export default function StudioPage() {
 
   const [showAbout, setShowAbout] = useState(false);
   const [showCaseForm, setShowCaseForm] = useState(false);
+  const [showClaimComposer, setShowClaimComposer] = useState(false);
+  const [showLightbox, setShowLightbox] = useState(false);
+  const [showClaimTray, setShowClaimTray] = useState(false);
   const [snapshotPhase, setSnapshotPhase] = useState<'entry' | 'exit' | null>(null);
   const [toast, setToast] = useState<{ message: string; kind: 'ok' | 'err' } | null>(null);
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -79,12 +78,13 @@ export default function StudioPage() {
     setActiveClaim(null);
     setEvaluation(null);
     setSettlement(null);
+    setShowLightbox(false);
   }, [activeCase, loadCaseData]);
 
   const entrySnaps = useMemo(() => snapshots.filter((s) => s.phase === 'entry'), [snapshots]);
   const exitSnaps = useMemo(() => snapshots.filter((s) => s.phase === 'exit'), [snapshots]);
 
-  // Derive zone markers for the canvas from the entry/exit comparison.
+  // Derive zone markers for the floor-plan canvas from the entry/exit comparison.
   const zoneMarkers: ZoneMarker[] = useMemo(() => {
     const entryKeys = new Set(
       entrySnaps.filter((s) => s.issueType !== 'none').map((s) => `${s.zone}|${s.item}|${s.issueType}`),
@@ -112,6 +112,7 @@ export default function StudioPage() {
     setEvaluation(null);
     setSettlement(null);
     setSealAnim(false);
+    setShowClaimTray(false);
     if (c.evaluated) {
       try {
         const ev = await api.getEvaluation(c.id);
@@ -154,6 +155,7 @@ export default function StudioPage() {
       }
       try {
         if (!wallet) await store.connect();
+        setShowClaimComposer(false);
         setTxPhase('signing');
         setTxMessage('Filing the dispute claim on-chain.');
         await writeAndWait(
@@ -282,6 +284,8 @@ export default function StudioPage() {
     return m;
   }, [evaluation, exitSnaps]);
 
+  const evidenceCount = entrySnaps.length + exitSnaps.length;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <header
@@ -300,7 +304,7 @@ export default function StudioPage() {
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.05rem', lineHeight: 1 }}>
               MoveMark
             </div>
-            <div style={{ fontSize: '0.66rem', color: 'var(--ink-3)' }}>Condition verification for shared spaces</div>
+            <div style={{ fontSize: '0.66rem', color: 'var(--ink-3)' }}>Forensic condition workbench</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 18, marginLeft: 22, fontSize: '0.72rem', color: 'var(--ink-3)' }}>
@@ -341,215 +345,245 @@ export default function StudioPage() {
         </div>
       </header>
 
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '270px 1fr 350px', minHeight: 0 }}>
-        {/* left rail */}
-        <aside style={{ borderRight: '1px solid var(--border)', padding: 16, overflow: 'hidden' }}>
-          <CaseRail activeCase={activeCase} onSelectCase={setActiveCase} onNewCase={() => setShowCaseForm(true)} />
-        </aside>
+      {/* TOP STRIP of case file tabs (replaces the old left rail). */}
+      <CaseTabStrip activeCase={activeCase} onSelectCase={setActiveCase} onNewCase={() => setShowCaseForm(true)} />
 
-        {/* center inspection bench */}
-        <main style={{ overflowY: 'auto', padding: '18px 24px', display: 'grid', gap: 18, alignContent: 'start' }}>
-          <section
-            style={{
-              height: 320,
-              borderRadius: 'var(--radius-l)',
-              border: '1px solid var(--border)',
-              background: 'radial-gradient(600px 400px at 50% 50%, rgba(199,154,75,0.06), transparent 70%)',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            <SpaceMapCanvas
-              zones={zoneMarkers}
-              title={theCase?.title || 'MoveMark'}
-              reducedMotion={reducedMotion}
-              gateProgress={gateProgress}
-              gateColor={evaluation ? gateColor(evaluation.gateResult) : '#c79a4b'}
-              flagged={flagged}
-            />
-          </section>
+      {/* The dominant surface: a large floor-plan inspection table. Overlays
+          (evidence lightbox, adjudication dock, claim tray) open over it. No
+          flanking asides, no split pane. */}
+      <main style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <SpaceMapCanvas
+          zones={zoneMarkers}
+          title={theCase?.title || 'MoveMark inspection floor'}
+          reducedMotion={reducedMotion}
+          gateProgress={gateProgress}
+          gateColor={evaluation ? gateColor(evaluation.gateResult) : '#c79a4b'}
+          flagged={flagged}
+        />
 
-          {theCase ? (
-            <>
-              <section style={panelStyle}>
-                <SectionTitle
-                  title="Entry and exit snapshots"
-                  right={
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <Button
-                        variant="ghost"
-                        onClick={() => setSnapshotPhase('entry')}
-                        style={{ padding: '5px 11px', fontSize: '0.7rem' }}
-                      >
-                        Add entry
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        onClick={() => setSnapshotPhase('exit')}
-                        style={{ padding: '5px 11px', fontSize: '0.7rem' }}
-                      >
-                        Add exit
-                      </Button>
-                    </div>
-                  }
-                />
-                {entrySnaps.length === 0 && exitSnaps.length === 0 ? (
-                  <div style={{ fontSize: '0.78rem', color: 'var(--ink-4)', lineHeight: 1.5 }}>
-                    No snapshots recorded. Capture the condition at handover and at return to build the evidence
-                    ribbon.
-                  </div>
-                ) : (
-                  <EvidenceMatchRibbon
-                    entry={entrySnaps}
-                    exit={exitSnaps}
-                    matchedEntryIds={evaluation?.matchedEntryIds}
-                    matchedExitIds={evaluation?.matchedExitIds}
-                    reducedMotion={reducedMotion}
-                  />
-                )}
-              </section>
+        {theCase ? (
+          <>
+            {/* Case dossier overlay, pinned to the top-left of the floor. */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 18,
+                top: 64,
+                maxWidth: 260,
+                padding: 14,
+                borderRadius: 'var(--radius-l)',
+                border: '1px solid var(--border)',
+                background: 'rgba(15,12,9,0.74)',
+                backdropFilter: 'blur(8px)',
+                pointerEvents: 'none',
+              }}
+            >
+              <div className="stencil" style={{ fontSize: '0.56rem', color: 'var(--ink-3)' }}>
+                On the table
+              </div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'var(--ink)', lineHeight: 1.25, marginTop: 2 }}>
+                {theCase.title}
+              </div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--ink-3)', marginTop: 6 }}>
+                {titleCase(theCase.assetType)} | deposit {credits(theCase.depositAmount)}
+              </div>
+              <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: '0.62rem', color: 'var(--ink-4)' }}>
+                <FloorStat label="Entry" value={theCase.entryCount} />
+                <FloorStat label="Exit" value={theCase.exitCount} />
+                <FloorStat label="Claims" value={theCase.claimCount} />
+              </div>
+            </div>
 
-              <section style={panelStyle}>
-                <SectionTitle title="File a dispute claim" />
-                <ClaimComposer onSubmit={onFileClaim} busy={busy} />
-              </section>
+            {/* Floating tool cluster, top-right of the floor. */}
+            <div
+              style={{
+                position: 'absolute',
+                right: 18,
+                top: 64,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                alignItems: 'flex-end',
+              }}
+            >
+              <Button
+                onClick={() => setShowLightbox(true)}
+                style={{ padding: '7px 14px', fontSize: '0.74rem' }}
+              >
+                Inspect evidence ({evidenceCount})
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setShowClaimComposer(true)}
+                style={{ padding: '7px 14px', fontSize: '0.74rem' }}
+              >
+                File a dispute claim
+              </Button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Button
+                  variant="ghost"
+                  onClick={() => setSnapshotPhase('entry')}
+                  style={{ padding: '6px 11px', fontSize: '0.7rem' }}
+                >
+                  Add entry
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setSnapshotPhase('exit')}
+                  style={{ padding: '6px 11px', fontSize: '0.7rem' }}
+                >
+                  Add exit
+                </Button>
+              </div>
+            </div>
 
-              <section style={panelStyle}>
-                <SectionTitle title="Claims against this case" />
-                <ClaimList claims={claims} activeId={activeClaim?.id || null} onSelect={selectClaim} />
-              </section>
-            </>
-          ) : (
-            <EmptyBench onNewCase={() => setShowCaseForm(true)} />
-          )}
-        </main>
-
-        {/* right adjudication inspector */}
-        <aside style={{ borderLeft: '1px solid var(--border)', padding: 16, overflowY: 'auto' }}>
-          <SectionTitle title="Adjudication gate" />
-          {activeClaim ? (
-            <div style={{ display: 'grid', gap: 16 }}>
-              <div
+            {/* Claims tray toggle, pinned bottom-left of the floor. */}
+            <div style={{ position: 'absolute', left: 18, bottom: 18, width: 280, maxWidth: '46%' }}>
+              <button
+                onClick={() => setShowClaimTray((v) => !v)}
                 style={{
-                  padding: 12,
-                  borderRadius: 'var(--radius-m)',
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '9px 13px',
+                  borderRadius: showClaimTray ? '12px 12px 0 0' : 'var(--radius-m)',
                   border: '1px solid var(--border)',
-                  background: 'rgba(243,236,223,0.02)',
+                  background: 'rgba(15,12,9,0.82)',
+                  backdropFilter: 'blur(8px)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                 }}
               >
-                <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>
-                  {titleCase(activeClaim.claimType)}
-                </div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--ink-3)', lineHeight: 1.4 }}>
-                  {activeClaim.explanation}
-                </div>
-                {!activeClaim.evaluated && (
-                  <Button onClick={() => evaluateExisting(activeClaim)} disabled={busy} style={{ marginTop: 12, width: '100%' }}>
-                    {busy ? 'Evaluating...' : 'Pass through the gate'}
-                  </Button>
-                )}
-              </div>
-
-              {evaluation && (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <WearCompassDial
-                      confidenceBps={evaluation.confidenceBps}
-                      severity={supportedSeverity}
-                      gateColor={gateColor(evaluation.gateResult)}
-                      label={gateLabel(evaluation.gateResult)}
-                      reducedMotion={reducedMotion}
-                    />
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: '0.8rem',
-                      color: 'var(--ink-2)',
-                      lineHeight: 1.5,
-                      padding: 12,
-                      borderRadius: 'var(--radius-m)',
-                      border: '1px solid var(--border)',
-                      background: 'rgba(243,236,223,0.02)',
-                    }}
-                  >
-                    {evaluation.reason}
-                    <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: '0.7rem', color: 'var(--ink-3)' }}>
-                      <span>Confidence {bps(evaluation.confidenceBps)}</span>
-                      <span>Recommended deduction {credits(evaluation.recommendedDeduction)}</span>
+                <span className="stencil" style={{ fontSize: '0.58rem', color: 'var(--ink-3)' }}>
+                  Claims docket ({claims.length})
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--ink-3)' }}>{showClaimTray ? 'hide' : 'show'}</span>
+              </button>
+              {showClaimTray && (
+                <div
+                  className="rise"
+                  style={{
+                    maxHeight: 240,
+                    overflowY: 'auto',
+                    padding: 10,
+                    display: 'grid',
+                    gap: 8,
+                    borderRadius: '0 0 12px 12px',
+                    border: '1px solid var(--border)',
+                    borderTop: 'none',
+                    background: 'rgba(15,12,9,0.92)',
+                    backdropFilter: 'blur(8px)',
+                  }}
+                >
+                  {claims.length === 0 && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--ink-4)', lineHeight: 1.5 }}>
+                      No claims filed against this case yet.
                     </div>
-                    {evaluation.riskFlags.length > 0 && (
-                      <div style={{ marginTop: 6, fontSize: '0.7rem', color: 'var(--rust)' }}>
-                        Risk: {evaluation.riskFlags.join(', ')}
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="stencil" style={{ fontSize: '0.6rem', color: 'var(--ink-3)', marginBottom: 8 }}>
-                      Validator ledger
-                    </div>
-                    <ValidatorLedger validators={evaluation.validatorSummary} active={sealAnim} />
-                  </div>
-
-                  {!settlement && (
-                    <Button onClick={sealSettlement} disabled={busy} style={{ width: '100%' }}>
-                      Seal settlement receipt
-                    </Button>
                   )}
-
-                  <AnimatePresence>
-                    {settlement && (
-                      <motion.div
-                        key={settlement.id}
-                        initial={{ opacity: 0, scale: 0.96 }}
-                        animate={{ opacity: 1, scale: 1 }}
+                  {claims.map((c) => {
+                    const active = c.id === activeClaim?.id;
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => selectClaim(c)}
                         style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: 12,
-                          padding: 14,
+                          textAlign: 'left',
+                          padding: 10,
                           borderRadius: 'var(--radius-m)',
-                          border: '1px solid var(--border)',
-                          background: 'rgba(243,236,223,0.02)',
+                          border: `1px solid ${active ? 'var(--border-strong)' : 'var(--border)'}`,
+                          background: active ? 'rgba(199,154,75,0.1)' : 'rgba(243,236,223,0.02)',
                         }}
                       >
-                        <SettlementSeal
-                          gate={settlement.gateResult}
-                          outcomeLabel={settlement.outcomeLabel}
-                          proofHash={settlement.proofHash}
-                          color={gateColor(settlement.gateResult)}
-                          animate={sealAnim && !reducedMotion}
-                        />
-                        <div style={{ display: 'flex', gap: 16, fontSize: '0.7rem', color: 'var(--ink-3)' }}>
-                          <span>Deposit {credits(settlement.depositAmount)}</span>
-                          <span>Deduction {credits(settlement.settledDeduction)}</span>
-                          <span>Returned {credits(settlement.returnedToUser)}</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--ink)' }}>
+                            {titleCase(c.claimType)}
+                          </span>
+                          <span className="mono" style={{ fontSize: '0.7rem', color: 'var(--brass-2)' }}>
+                            {credits(c.claimedAmount)}
+                          </span>
                         </div>
-                        <Button
-                          variant="ghost"
-                          onClick={() => downloadJson(`${settlement.id}.json`, settlement)}
-                          style={{ width: '100%' }}
+                        <div
+                          style={{
+                            fontSize: '0.62rem',
+                            color: c.evaluated ? 'var(--green)' : 'var(--ink-4)',
+                            marginTop: 4,
+                          }}
                         >
-                          Export receipt JSON
-                        </Button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </>
+                          {c.evaluated ? 'evaluated' : 'awaiting gate'}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               )}
             </div>
-          ) : (
-            <ValidatorLedger validators={[]} />
-          )}
-        </aside>
-      </div>
+          </>
+        ) : (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 16,
+              textAlign: 'center',
+              padding: 40,
+              pointerEvents: 'none',
+            }}
+          >
+            <p style={{ color: 'var(--ink-3)', lineHeight: 1.6, maxWidth: 360 }}>
+              No case on the inspection table. Pick a case file from the strip above, or open a new one to start a
+              chain of custody.
+            </p>
+            <div style={{ pointerEvents: 'auto' }}>
+              <Button onClick={() => setShowCaseForm(true)}>Open a condition case</Button>
+            </div>
+          </div>
+        )}
+
+        {/* Before/after evidence lightbox: bottom sheet over the floor plan. */}
+        {showLightbox && theCase && (
+          <BeforeAfterLightbox
+            title={theCase.title}
+            entry={entrySnaps}
+            exit={exitSnaps}
+            matchedEntryIds={evaluation?.matchedEntryIds}
+            matchedExitIds={evaluation?.matchedExitIds}
+            reducedMotion={reducedMotion}
+            onClose={() => setShowLightbox(false)}
+            onAddEntry={() => setSnapshotPhase('entry')}
+            onAddExit={() => setSnapshotPhase('exit')}
+          />
+        )}
+
+        {/* Adjudication dock: sheet that slides up over the floor plan. */}
+        {activeClaim && (
+          <AdjudicationDock
+            claim={activeClaim}
+            evaluation={evaluation}
+            settlement={settlement}
+            supportedSeverity={supportedSeverity}
+            busy={busy}
+            sealAnim={sealAnim}
+            reducedMotion={reducedMotion}
+            onEvaluate={evaluateExisting}
+            onSeal={sealSettlement}
+            onClose={() => setActiveClaim(null)}
+          />
+        )}
+      </main>
 
       <TransactionTheater phase={txPhase} hash={txHash} message={txMessage} />
 
       {showAbout && <AboutDrawer onClose={() => setShowAbout(false)} />}
       {showCaseForm && <CaseForm onClose={() => setShowCaseForm(false)} onDone={notify} />}
+      {showClaimComposer && theCase && (
+        <Modal title="File a dispute claim" onClose={() => setShowClaimComposer(false)} wide>
+          <ClaimComposer onSubmit={onFileClaim} busy={busy} />
+        </Modal>
+      )}
       {snapshotPhase && theCase && (
         <SnapshotForm
           caseId={theCase.id}
@@ -563,13 +597,6 @@ export default function StudioPage() {
   );
 }
 
-const panelStyle: React.CSSProperties = {
-  borderRadius: 'var(--radius-l)',
-  border: '1px solid var(--border)',
-  background: 'var(--surface)',
-  padding: 18,
-};
-
 function Stat({ label, value }: { label: string; value?: number }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
@@ -581,32 +608,13 @@ function Stat({ label, value }: { label: string; value?: number }) {
   );
 }
 
-function SectionTitle({ title, right }: { title: string; right?: React.ReactNode }) {
+function FloorStat({ label, value }: { label: string; value?: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-      <span className="stencil" style={{ fontSize: '0.62rem', color: 'var(--ink-3)' }}>
-        {title}
+    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+      <span className="mono" style={{ color: 'var(--ink-2)', fontSize: '0.8rem' }}>
+        {value ?? 0}
       </span>
-      {right}
-    </div>
-  );
-}
-
-function EmptyBench({ onNewCase }: { onNewCase: () => void }) {
-  return (
-    <div
-      style={{
-        borderRadius: 'var(--radius-l)',
-        border: '1px dashed var(--border)',
-        padding: 40,
-        textAlign: 'center',
-        color: 'var(--ink-3)',
-      }}
-    >
-      <p style={{ marginBottom: 14, lineHeight: 1.6 }}>
-        No case selected. Open a condition case on the left to begin recording snapshots and filing claims.
-      </p>
-      <Button onClick={onNewCase}>Open a condition case</Button>
+      <span style={{ fontSize: '0.54rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</span>
     </div>
   );
 }

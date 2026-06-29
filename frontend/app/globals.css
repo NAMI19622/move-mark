@@ -174,6 +174,79 @@ a {
   }
 }
 
+/* The adjudication dock sliding up over the floor plan. */
+@keyframes mm-dock-up {
+  from {
+    transform: translateY(102%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* The before/after evidence lightbox opening over the plan. */
+@keyframes mm-lightbox-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* The two facing evidence panels parting like a lightbox. */
+@keyframes mm-panel-left {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes mm-panel-right {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* A case tab settling into the active slot. */
+@keyframes mm-tab-mark {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dock-up {
+  animation: mm-dock-up var(--dur-3) var(--ease) both;
+}
+.lightbox-in {
+  animation: mm-lightbox-in var(--dur-2) var(--ease) both;
+}
+.panel-left {
+  animation: mm-panel-left var(--dur-3) var(--ease) both;
+}
+.panel-right {
+  animation: mm-panel-right var(--dur-3) var(--ease) both;
+}
+.tab-mark {
+  animation: mm-tab-mark var(--dur-2) var(--ease) both;
+}
+
 .rise {
   animation: mm-rise var(--dur-2) var(--ease) both;
 }
