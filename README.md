@@ -228,9 +228,10 @@ point the frontend at a deployment, set `NEXT_PUBLIC_CONTRACT_ADDRESS` and
 ## Evidence locker
 
 - Network: Bradbury testnet (`testnet-bradbury`).
-- Contract address: pending deployment.
-- Live frontend URL: pending deployment.
-- Explorer: https://explorer-bradbury.genlayer.com
+- Contract address: `0x2f27B3b57879Ec3Bd5D9CACE30ea8Aa6d85907d7`.
+- Live frontend URL: https://move-mark.pages.dev/
+- Source: https://github.com/NAMI19622/move-mark
+- Explorer: https://explorer-bradbury.genlayer.com/address/0x2f27B3b57879Ec3Bd5D9CACE30ea8Aa6d85907d7
 
 ## Safety and legal notice
 
