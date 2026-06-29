@@ -316,7 +316,9 @@ export default function WorkbenchPage() {
   const evidenceCount = entrySnaps.length + exitSnaps.length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'row', height: '100vh' }}>
+      {/* The custody chrome lives entirely in a thin vertical left spine, not a
+          full-width horizontal top bar. */}
       <CaseFileHeader
         summary={summary}
         theCase={theCase}
@@ -325,13 +327,16 @@ export default function WorkbenchPage() {
         onAbout={() => setShowAbout(true)}
       />
 
-      {/* TOP STRIP of case file tabs (replaces the old left rail). */}
-      <CaseTabStrip activeCase={activeCase} onSelectCase={setActiveCase} onNewCase={() => setShowCaseForm(true)} />
+      {/* Everything to the right of the spine: the case-tabs strip and the
+          floor-plan workbench, stacked vertically. */}
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, height: '100%' }}>
+        {/* TOP STRIP of case file tabs (replaces the old left rail). */}
+        <CaseTabStrip activeCase={activeCase} onSelectCase={setActiveCase} onNewCase={() => setShowCaseForm(true)} />
 
-      {/* The dominant surface: a large floor-plan inspection table. Overlays
-          (evidence lightbox, adjudication dock, claim tray) open over it. No
-          flanking asides, no split pane. */}
-      <main style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        {/* The dominant surface: a large floor-plan inspection table. Overlays
+            (evidence lightbox, adjudication dock, claim tray) open over it. No
+            flanking asides, no split pane. */}
+        <main style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <SpaceMapCanvas
           zones={floorZones}
           title={theCase?.title || 'MoveMark inspection floor'}
@@ -607,6 +612,7 @@ export default function WorkbenchPage() {
           />
         )}
       </main>
+      </div>
 
       <TransactionTheater phase={txPhase} hash={txHash} message={txMessage} />
 

@@ -21,8 +21,6 @@ and how to run it yourself.
 You need Node 18+ and Python 3.11+.
 
 ```
-git clone https://github.com/NAMI19622/move-mark
-cd move-mark
 genvm-lint check contracts/contract.py     # lint the contract
 python -m pytest tests/direct/ -q          # run the 19 direct tests
 cd frontend && npm install && npm run dev  # open the inspection studio
@@ -158,11 +156,11 @@ Tight type. All motion respects reduced-motion and pauses when the tab is hidden
 
 ## On-chain coordinates
 
-- Network: Bradbury testnet (`testnet-bradbury`)
-- Contract: `0x2f27B3b57879Ec3Bd5D9CACE30ea8Aa6d85907d7`
-- Explorer: https://explorer-bradbury.genlayer.com/address/0x2f27B3b57879Ec3Bd5D9CACE30ea8Aa6d85907d7
-- Live studio: https://move-mark.pages.dev/
-- Source: https://github.com/NAMI19622/move-mark
+The studio runs against the Bradbury testnet (`testnet-bradbury`). The deployed
+contract address and network live in the frontend environment
+(`NEXT_PUBLIC_CONTRACT_ADDRESS`, `NEXT_PUBLIC_GENLAYER_NETWORK`) and are shown in
+the studio's about panel, so the running instance always names the contract it
+reads.
 
 To deploy your own, `scripts/deploy.py` reads `GENLAYER_PRIVATE_KEY` from the
 workspace `.env`, deploys, waits for ACCEPTED, writes `deployment.json`, and

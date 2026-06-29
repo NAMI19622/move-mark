@@ -2,7 +2,6 @@
 
 import React from 'react';
 import type { ConditionCase, Summary } from '../lib/types';
-import { titleCase } from '../lib/format';
 import WalletButton from './WalletButton';
 
 interface Props {
@@ -13,7 +12,7 @@ interface Props {
   onAbout: () => void;
 }
 
-// A folder-tab mark stamped into the manila tab of the intake bar.
+// A folder-tab custody mark stamped at the head of the spine.
 function CustodyMark() {
   return (
     <svg width="30" height="30" viewBox="0 0 34 34" aria-hidden>
@@ -35,77 +34,85 @@ function CustodyMark() {
   );
 }
 
-// One link in the chain-of-custody readout. Lit when that stage has evidence.
-function CustodyLink({ label, count, lit, last }: { label: string; count: number; lit: boolean; last?: boolean }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-        <span
-          className="mono"
-          style={{
-            minWidth: 26,
-            textAlign: 'center',
-            padding: '1px 6px',
-            borderRadius: 4,
-            fontSize: '0.72rem',
-            fontWeight: 700,
-            color: lit ? 'var(--bg-0)' : 'var(--ink-4)',
-            background: lit ? 'var(--brass-2)' : 'transparent',
-            border: `1px solid ${lit ? 'var(--brass-2)' : 'var(--border)'}`,
-            boxShadow: lit ? '0 0 10px rgba(199,154,75,0.45)' : 'none',
-          }}
-        >
-          {count}
-        </span>
-        <span
-          className="stencil"
-          style={{ fontSize: '0.46rem', color: lit ? 'var(--ink-2)' : 'var(--ink-4)' }}
-        >
-          {label}
-        </span>
-      </div>
-      {!last && (
-        <span
-          style={{
-            width: 14,
-            height: 2,
-            borderRadius: 2,
-            background: lit ? 'var(--brass)' : 'var(--border)',
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-// A small stamped record tag for the global ledger counts.
-function LedgerTag({ label, value }: { label: string; value?: number }) {
+// A tiny stacked evidence chip for the custody-chain and global ledger counts.
+function SpineChip({ label, value, lit }: { label: string; value?: number; lit?: boolean }) {
   return (
     <div
       style={{
         display: 'flex',
         flexDirection: 'column',
+        alignItems: 'center',
         lineHeight: 1.05,
-        padding: '3px 9px',
-        borderLeft: '1px solid var(--border)',
+        padding: '3px 0',
+        width: 40,
+        borderRadius: 5,
+        border: `1px solid ${lit ? 'var(--brass-2)' : 'var(--border)'}`,
+        background: lit ? 'rgba(199,154,75,0.14)' : 'rgba(20,17,13,0.4)',
+        boxShadow: lit ? '0 0 8px rgba(199,154,75,0.35)' : 'none',
       }}
     >
-      <span className="mono" style={{ color: 'var(--ink)', fontSize: '0.82rem', fontWeight: 600 }}>
+      <span
+        className="mono"
+        style={{ fontSize: '0.74rem', fontWeight: 700, color: lit ? 'var(--brass-2)' : 'var(--ink-3)' }}
+      >
         {value ?? '..'}
       </span>
-      <span className="stencil" style={{ fontSize: '0.46rem', color: 'var(--ink-4)' }}>
+      <span className="stencil" style={{ fontSize: '0.4rem', color: 'var(--ink-4)' }}>
         {label}
       </span>
     </div>
   );
 }
 
-// The MoveMark intake bar: a manila folder-tab header for a forensic
-// chain-of-custody desk. The left edge is a raised folder tab carrying the
-// wordmark; the body is a walnut intake strip stamped with the active case
-// number, a custody-chain readout, the global evidence ledger, and the
-// evidence-room control toggles. Deliberately unlike the generic sibling
-// logo + counter + pill-cluster header.
+// A squared evidence-room locker control sitting in the spine.
+function SpineButton({
+  onClick,
+  title,
+  top,
+  bottom,
+  active,
+}: {
+  onClick: () => void;
+  title: string;
+  top: string;
+  bottom: string;
+  active?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 1,
+        width: 44,
+        height: 44,
+        borderRadius: 6,
+        border: `1px solid ${active ? 'var(--brass-2)' : 'var(--border)'}`,
+        background: active ? 'rgba(199,154,75,0.12)' : 'rgba(20,17,13,0.4)',
+      }}
+    >
+      <span className="stencil" style={{ fontSize: '0.4rem', color: 'var(--ink-4)' }}>
+        {top}
+      </span>
+      <span
+        style={{ fontSize: '0.62rem', fontWeight: 700, color: active ? 'var(--brass-2)' : 'var(--ink-2)' }}
+      >
+        {bottom}
+      </span>
+    </button>
+  );
+}
+
+// The MoveMark custody spine: a thin vertical gutter running top-to-bottom down
+// the left edge of the viewport. Stacked vertically from the top: the custody
+// mark, the case number stamped as a rotated spine label, the custody status,
+// the custody-chain and global-ledger chips, and the evidence-room controls
+// (motion, field manual, wallet) as squared locker buttons. There is no
+// full-width horizontal bar; the chrome lives entirely off the top.
 export default function CaseFileHeader({ summary, theCase, reducedMotion, setReducedMotion, onAbout }: Props) {
   const caseNo = theCase ? `MM-${String(theCase.seq).padStart(4, '0')}` : 'MM-----';
   const custody = theCase
@@ -124,163 +131,134 @@ export default function CaseFileHeader({ summary, theCase, reducedMotion, setRed
     : 'var(--evidence)';
 
   return (
-    <header style={{ position: 'relative', flexShrink: 0 }}>
-      {/* Folder tab carrying the wordmark. */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', paddingLeft: 16 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '7px 22px 6px 14px',
-            background: 'linear-gradient(180deg, rgba(75,57,37,0.95), rgba(58,44,29,0.85))',
-            border: '1px solid var(--border-strong)',
-            borderBottom: 'none',
-            borderRadius: '10px 16px 0 0',
-            clipPath: 'polygon(0 0, 86% 0, 100% 100%, 0 100%)',
-            paddingRight: 30,
-          }}
+    <aside
+      style={{
+        position: 'relative',
+        flexShrink: 0,
+        width: 70,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 12,
+        padding: '12px 0 14px',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        borderRight: '2px solid var(--brass)',
+        background:
+          'repeating-linear-gradient(180deg, rgba(58,44,29,0.5) 0 14px, rgba(43,33,21,0.5) 14px 28px), var(--bg-1)',
+      }}
+    >
+      {/* Custody mark at the head of the spine. */}
+      <div
+        title="MoveMark chain of custody desk"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 3,
+          paddingBottom: 8,
+          borderBottom: '1px solid var(--border)',
+          width: '100%',
+        }}
+      >
+        <CustodyMark />
+        <span
+          className="stencil"
+          style={{ fontSize: '0.4rem', color: 'var(--brass-2)', writingMode: 'vertical-rl', display: 'none' }}
         >
-          <CustodyMark />
-          <div>
-            <div
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontWeight: 900,
-                fontSize: '1.08rem',
-                lineHeight: 1,
-                letterSpacing: '0.01em',
-                color: 'var(--ink)',
-              }}
-            >
-              MoveMark
-            </div>
-            <div className="stencil" style={{ fontSize: '0.5rem', color: 'var(--brass-2)', marginTop: 2 }}>
-              Chain of custody desk
-            </div>
-          </div>
-        </div>
+          MoveMark
+        </span>
       </div>
 
-      {/* Intake bar body. */}
+      {/* Case number stamped as a vertical spine label. */}
       <div
         style={{
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
-          gap: 20,
-          padding: '9px 20px 9px 16px',
-          borderTop: '2px solid var(--brass)',
-          borderBottom: '1px solid var(--border-strong)',
-          background:
-            'repeating-linear-gradient(135deg, rgba(58,44,29,0.5) 0 14px, rgba(43,33,21,0.5) 14px 28px), var(--bg-1)',
+          gap: 6,
+          padding: '8px 4px',
+          border: '1.5px dashed var(--border-strong)',
+          borderRadius: 6,
+          background: 'rgba(20,17,13,0.5)',
         }}
       >
-        {/* Case number stamp. */}
-        <div
+        <span className="stencil" style={{ fontSize: '0.4rem', color: 'var(--ink-4)' }}>
+          Case
+        </span>
+        <span
+          className="mono"
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 3,
-            padding: '5px 12px',
-            border: '1.5px dashed var(--border-strong)',
-            borderRadius: 6,
-            background: 'rgba(20,17,13,0.5)',
-            flexShrink: 0,
+            writingMode: 'vertical-rl',
+            textOrientation: 'mixed',
+            transform: 'rotate(180deg)',
+            fontSize: '0.84rem',
+            fontWeight: 700,
+            letterSpacing: '0.18em',
+            color: 'var(--brass-2)',
           }}
         >
-          <span className="stencil" style={{ fontSize: '0.46rem', color: 'var(--ink-4)' }}>
-            Case no.
-          </span>
-          <span className="mono" style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--brass-2)', letterSpacing: '0.04em' }}>
-            {caseNo}
-          </span>
-          <span
-            style={{
-              fontSize: '0.5rem',
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              fontWeight: 700,
-              color: custodyColor,
-            }}
-          >
-            {custody}
-          </span>
-        </div>
+          {caseNo}
+        </span>
+        <span
+          style={{
+            writingMode: 'vertical-rl',
+            textOrientation: 'mixed',
+            transform: 'rotate(180deg)',
+            fontSize: '0.46rem',
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+            fontWeight: 700,
+            color: custodyColor,
+          }}
+        >
+          {custody}
+        </span>
+      </div>
 
-        {/* Chain-of-custody readout for the active file. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="stencil" style={{ fontSize: '0.46rem', color: 'var(--ink-4)', writingMode: 'horizontal-tb' }}>
-            Custody chain
-          </span>
-          <CustodyLink label="Intake" count={theCase?.entryCount ?? 0} lit={(theCase?.entryCount ?? 0) > 0} />
-          <CustodyLink label="Return" count={theCase?.exitCount ?? 0} lit={(theCase?.exitCount ?? 0) > 0} />
-          <CustodyLink label="Dispute" count={theCase?.claimCount ?? 0} lit={(theCase?.claimCount ?? 0) > 0} last />
-        </div>
+      {/* Custody-chain readout for the active file as stacked chips. */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+        <span className="stencil" style={{ fontSize: '0.4rem', color: 'var(--ink-4)' }}>
+          Chain
+        </span>
+        <SpineChip label="In" value={theCase?.entryCount ?? 0} lit={(theCase?.entryCount ?? 0) > 0} />
+        <SpineChip label="Out" value={theCase?.exitCount ?? 0} lit={(theCase?.exitCount ?? 0) > 0} />
+        <SpineChip label="Disp" value={theCase?.claimCount ?? 0} lit={(theCase?.claimCount ?? 0) > 0} />
+      </div>
 
-        {theCase && (
-          <span style={{ fontSize: '0.62rem', color: 'var(--ink-3)', flexShrink: 0 }}>
-            {titleCase(theCase.assetType)}
-          </span>
-        )}
+      {/* Global evidence ledger as tiny stacked chips. */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+        <span className="stencil" style={{ fontSize: '0.4rem', color: 'var(--ink-4)' }}>
+          Ledger
+        </span>
+        <SpineChip label="Case" value={summary?.cases} />
+        <SpineChip label="Snap" value={summary?.snapshots} />
+        <SpineChip label="Clm" value={summary?.claims} />
+        <SpineChip label="Seal" value={summary?.settlements} />
+      </div>
 
-        {/* Global evidence ledger. */}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
-          <span className="stencil" style={{ fontSize: '0.46rem', color: 'var(--ink-4)', paddingRight: 4 }}>
-            On file
-          </span>
-          <LedgerTag label="Cases" value={summary?.cases} />
-          <LedgerTag label="Snaps" value={summary?.snapshots} />
-          <LedgerTag label="Claims" value={summary?.claims} />
-          <LedgerTag label="Sealed" value={summary?.settlements} />
-        </div>
-
-        {/* Evidence-room control toggles (squared lockers, not a pill row). */}
-        <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, flexShrink: 0 }}>
-          <button
-            onClick={() => setReducedMotion(!reducedMotion)}
-            title="Toggle reduced motion"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 2,
-              padding: '5px 11px',
-              background: reducedMotion ? 'transparent' : 'rgba(199,154,75,0.12)',
-              border: '1px solid var(--border)',
-              borderRight: 'none',
-              borderRadius: '5px 0 0 5px',
-            }}
-          >
-            <span className="stencil" style={{ fontSize: '0.44rem', color: 'var(--ink-4)' }}>
-              Motion
-            </span>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: reducedMotion ? 'var(--ink-4)' : 'var(--brass-2)' }}>
-              {reducedMotion ? 'HELD' : 'LIVE'}
-            </span>
-          </button>
-          <button
-            onClick={onAbout}
-            title="Open the field manual"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 2,
-              padding: '5px 11px',
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              borderRadius: '0 5px 5px 0',
-            }}
-          >
-            <span className="stencil" style={{ fontSize: '0.44rem', color: 'var(--ink-4)' }}>
-              Manual
-            </span>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--ink-2)' }}>FIELD</span>
-          </button>
-        </div>
-
+      {/* Evidence-room controls, anchored to the foot of the spine. */}
+      <div
+        style={{
+          marginTop: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 8,
+          paddingTop: 10,
+        }}
+      >
+        <SpineButton
+          onClick={() => setReducedMotion(!reducedMotion)}
+          title="Toggle reduced motion"
+          top="Motion"
+          bottom={reducedMotion ? 'HELD' : 'LIVE'}
+          active={!reducedMotion}
+        />
+        <SpineButton onClick={onAbout} title="Open the field manual" top="Manual" bottom="FIELD" />
         <WalletButton />
       </div>
-    </header>
+    </aside>
   );
 }

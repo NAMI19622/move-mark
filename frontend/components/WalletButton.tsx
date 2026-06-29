@@ -5,6 +5,9 @@ import { useStore } from '../lib/store';
 import { shortAddr } from '../lib/format';
 import { explorerAddress } from '../lib/config';
 
+// A squared evidence-room control sized for the vertical custody spine. The
+// connected-address popover opens to the right so it is never clipped by the
+// narrow gutter.
 export default function WalletButton() {
   const { wallet, connect, disconnect } = useStore();
   const [open, setOpen] = useState(false);
@@ -29,24 +32,34 @@ export default function WalletButton() {
         <button
           onClick={onConnect}
           disabled={busy}
+          title="Connect wallet"
           style={{
-            padding: '8px 14px',
-            borderRadius: 'var(--radius-pill)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 1,
+            width: 44,
+            height: 44,
+            borderRadius: 6,
             border: '1px solid var(--border-strong)',
             background: 'linear-gradient(180deg, rgba(199,154,75,0.24), rgba(199,154,75,0.08))',
             color: 'var(--ink)',
-            fontSize: '0.8rem',
-            fontWeight: 600,
           }}
         >
-          {busy ? 'Connecting...' : 'Connect wallet'}
+          <span className="stencil" style={{ fontSize: '0.4rem', color: 'var(--ink-4)' }}>
+            Wallet
+          </span>
+          <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--brass-2)' }}>
+            {busy ? '...' : 'LINK'}
+          </span>
         </button>
         {err && (
           <div
             style={{
               position: 'absolute',
-              top: '110%',
-              right: 0,
+              bottom: 0,
+              left: '115%',
               width: 230,
               fontSize: '0.7rem',
               color: 'var(--rust)',
@@ -68,15 +81,18 @@ export default function WalletButton() {
     <div style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen((o) => !o)}
+        title={shortAddr(wallet)}
         style={{
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
-          gap: 8,
-          padding: '8px 14px',
-          borderRadius: 'var(--radius-pill)',
+          justifyContent: 'center',
+          gap: 3,
+          width: 44,
+          height: 44,
+          borderRadius: 6,
           border: '1px solid var(--border)',
           background: 'rgba(243,236,223,0.03)',
-          fontSize: '0.8rem',
         }}
       >
         <span
@@ -88,14 +104,16 @@ export default function WalletButton() {
             boxShadow: '0 0 8px var(--green)',
           }}
         />
-        <span className="mono">{shortAddr(wallet)}</span>
+        <span className="stencil" style={{ fontSize: '0.4rem', color: 'var(--ink-4)' }}>
+          Linked
+        </span>
       </button>
       {open && (
         <div
           style={{
             position: 'absolute',
-            top: '115%',
-            right: 0,
+            bottom: 0,
+            left: '115%',
             width: 250,
             background: 'var(--surface-solid)',
             border: '1px solid var(--border)',
